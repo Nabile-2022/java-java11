@@ -1,13 +1,25 @@
 package java8.ex08;
 
+import java8.data.Data;
+import java8.data.domain.Pizza;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.invoke.VarHandle;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.*;
@@ -65,14 +77,18 @@ public class Stream_08_Test {
 
 
     @Test
-    public void test_group() throws IOException {
+    public void test_group() throws IOException, URISyntaxException {
 
         // TODO utiliser la méthode java.nio.file.Files.lines pour créer un stream de lignes du fichier naissances_depuis_1900.csv
         // Le bloc try(...) permet de fermer (close()) le stream après utilisation
-        try (Stream<String> lines = null) {
+        try (Stream<String> lines = Files.lines(Path.of(ClassLoader.getSystemResource(NAISSANCES_DEPUIS_1900_CSV).toURI()))) {
 
             // TODO construire une MAP (clé = année de naissance, valeur = somme des nombres de naissance de l'année)
-            Map<String, Integer> result = null;
+            Map<String, Integer> result = lines.skip(1).map(l ->
+            {
+            	List<String> tokens = Arrays.stream(l.split(";")).toList();
+            	return new Naissance(tokens.get(1), tokens.get(2), Integer.parseInt(tokens.get(3)));
+            }).collect(groupingBy(n -> n.annee, summingInt(n -> n.getNombre())));
 
 
             assertThat(result.get("2015"), is(8097));
@@ -81,14 +97,18 @@ public class Stream_08_Test {
     }
 
     @Test
-    public void test_max() throws IOException {
+    public void test_max() throws IOException, URISyntaxException {
 
         // TODO utiliser la méthode java.nio.file.Files.lines pour créer un stream de lignes du fichier naissances_depuis_1900.csv
         // Le bloc try(...) permet de fermer (close()) le stream après utilisation
-        try (Stream<String> lines = null) {
+    	try (Stream<String> lines = Files.lines(Path.of(ClassLoader.getSystemResource(NAISSANCES_DEPUIS_1900_CSV).toURI()))) {
 
             // TODO trouver l'année où il va eu le plus de nombre de naissance
-            Optional<Naissance> result = null;
+            Optional<Naissance> result = lines.skip(1).map(l ->
+            {
+            	List<String> tokens = Arrays.stream(l.split(";")).toList();
+            	return new Naissance(tokens.get(1), tokens.get(2), Integer.parseInt(tokens.get(3)));
+            }).max((n1, n2) -> n1.nombre - n2.nombre);
 
 
             assertThat(result.get().getNombre(), is(48));
@@ -98,14 +118,24 @@ public class Stream_08_Test {
     }
 
     @Test
-    public void test_collectingAndThen() throws IOException {
+    public void test_collectingAndThen() throws IOException, URISyntaxException {
         // TODO utiliser la méthode java.nio.file.Files.lines pour créer un stream de lignes du fichier naissances_depuis_1900.csv
         // Le bloc try(...) permet de fermer (close()) le stream après utilisation
-        try (Stream<String> lines = null) {
+    	try (Stream<String> lines = Files.lines(Path.of(ClassLoader.getSystemResource(NAISSANCES_DEPUIS_1900_CSV).toURI()))) {
 
             // TODO construire une MAP (clé = année de naissance, valeur = maximum de nombre de naissances)
             // TODO utiliser la méthode "collectingAndThen" à la suite d'un "grouping"
-            Map<String, Naissance> result = null;
+            var result = lines
+                .skip(1)
+                .map(l ->
+                {
+                    var tokens = Arrays.stream(l.split(";")).toList();
+                    return new Naissance(tokens.get(1), tokens.get(2), Integer.parseInt(tokens.get(3)));
+                })
+                .sorted(Comparator.comparing(Naissance::getNombre))
+                .collect(
+                    groupingBy(Naissance::getAnnee,
+                        collectingAndThen(toList(), naissances -> naissances.get(naissances.size() - 1))));
 
             assertThat(result.get("2015").getNombre(), is(38));
             assertThat(result.get("2015").getJour(), is("20150909"));
@@ -124,9 +154,15 @@ public class Stream_08_Test {
     @Test
     public void test_pizzaData() throws IOException {
         // TODO utiliser la méthode java.nio.file.Files.list pour parcourir un répertoire
+        var pizzas = new Data().getPizzas();
 
         // TODO trouver la pizza la moins chère
-        String pizzaNamePriceMin = null;
+        String pizzaNamePriceMin = pizzas
+            .stream()
+            .sorted((p1, p2) -> p1.getPrice() - p2.getPrice())
+            .map(Pizza::getName)
+            .findFirst()
+            .get();
 
         assertThat(pizzaNamePriceMin, is("L'indienne"));
 
